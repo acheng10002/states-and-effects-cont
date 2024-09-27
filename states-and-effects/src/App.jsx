@@ -1652,6 +1652,1232 @@ function LightSwitch() {
   return <button onClick={handleClick}>Toggle the lights</button>;
 }
 
+/* queueing a series of state updates
+setting state queues re-render
+sometimes, I may want to perform multiple operations on the value before queueing the next render 
+
+What "batching" is and how React uses to process multiple state updates
+batching - React waits until all code in the event handlers has run before 
+           processing state updates 
+           this makes React run much faster
+           ***React does not batch across multiple intentional events like clicks 
+              each click is handled separately
+How to apply several updates to the same state variable in a row 
+use the functional form of the state setter/updater
+
+React batches state updates 
+***React waits until all code in the event handlers has run before 
+processing state updates 
+- re-render only happens after all event handler-related function calls
+- this way, I can update multiple state variables, potentially from multiple
+  components, without triggering too many re-renders */
+
+/* Updating the same state multiple times before the next render 
+I can do that by passing a function that calculates the next state 
+based on the previous one in the queue 
+this is a way of telling React to "do something with the state value" instead
+of just replacing it */
+function CounterThree() {
+  const [number, setNumber] = useState(0);
+  /* functional form of state setter
+  n => n + 1 is an updater function
+  updater function - when passed to a state setter
+                     1. React queues the function to be processed after all other 
+                        code in the event handler has run 
+                     2. during next render, React goes through the queue and gives
+                        me the final updated state 
+  while executing the event handler, React adds each setNumber() line to a queue 
+  at the end, React stores 3 as the final result and returns it from useState */
+  return (
+    <>
+      <h1>{number}</h1>
+      <button
+        onClick={() => {
+          setNumber((n) => n + 1);
+          setNumber((n) => n + 1);
+          setNumber((n) => n + 1);
+        }}
+      >
+        +3
+      </button>
+    </>
+  );
+}
+
+/* What happens if I update state after replacing it */
+function CounterFour() {
+  const [number, setNumber] = useState(0);
+
+  /* 1. React adds "replace with 5" to its queue
+     2. React adds the updater function to its queue 
+  React will store 6 as the final result and return it from useState */
+  return (
+    <>
+      <h1>{number}</h1>
+      <button
+        onClick={() => {
+          setNumber(number + 5);
+          setNumber((n) => n + 1);
+        }}
+      >
+        Increase the number
+      </button>
+    </>
+  );
+}
+
+// What happens if I replace state after updating it
+function CounterFive() {
+  const [number, setNumber] = useState(0);
+
+  /* 1. React adds replace with 5 to its queue
+     2. React adds the updater function to its queue
+     3. Reacts adds replace with 42 to its queue 
+  React stores 42 as the final result and returns it from useState 
+  
+   how to think about what I pass to the state setter:
+- any updater function gets added to the queue
+- any other value adds the replacement to the queue, 
+  ignoring what's already queued */
+  return (
+    <>
+      <h1>{number}</h1>
+      <button
+        onClick={() => {
+          setNumber(number + 5);
+          setNumber((n) => n + 1);
+          setNumber(42);
+        }}
+      >
+        Increase the number
+      </button>
+    </>
+  );
+}
+
+function RequestTracker() {
+  const [pending, setPending] = useState(0);
+  const [completed, setCompleted] = useState(0);
+
+  async function handleClick() {
+    /* pass updater functions to increment or decrement 
+    the counters in relation to the latest state rather
+    than what the state was at the time of the click */
+    setPending((pending) => pending + 1);
+    await delay(3000);
+    setPending((pending) => pending - 1);
+    setCompleted((completed) => completed + 1);
+  }
+
+  return (
+    <>
+      <h3>Pending: {pending}</h3>
+      <h3>Completed: {completed}</h3>
+      <button onClick={handleClick}>Buy</button>
+    </>
+  );
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function getFinalState(baseState, queue) {
+  let finalState = baseState;
+  for (let update of queue) {
+    if (typeof update === "function") {
+      finalState = increment(finalState);
+    } else {
+      finalState = update;
+    }
+  }
+  return finalState;
+}
+
+function increment(n) {
+  return n + 1;
+}
+increment.toString = () => "n => n+1";
+
+function AppOne() {
+  return (
+    <>
+      <TestCase baseState={0} queue={[1, 1, 1]} expected={1} />
+      <hr />
+      <TestCase
+        baseState={0}
+        queue={[increment, increment, increment]}
+        expected={3}
+      />
+      <hr />
+      <TestCase baseState={0} queue={[5, increment]} expected={6} />
+      <hr />
+      <TestCase baseState={0} queue={[5, increment, 42]} expected={42} />
+    </>
+  );
+}
+
+function TestCase({ baseState, queue, expected }) {
+  const actual = getFinalState(baseState, queue);
+  return (
+    <>
+      <p>
+        Base state: <b>{baseState}</b>
+      </p>
+      <p>
+        Queue: <b>[{queue.join(", ")}]</b>
+      </p>
+      <p>
+        Expected result: <b>{expected}</b>
+      </p>
+      <p
+        style={{
+          color: actual === expected ? "green" : "red",
+        }}
+      >
+        Your result: <b>{actual}</b> (
+        {actual === expected ? "correct" : "wrong"})
+      </p>
+    </>
+  );
+}
+
+/* Updating Objects in State
+State can hold JS objects, but I shouldn't change objects that
+  I hold in React state
+instead, I need to create a new one or make a copy of an 
+  existing one and then set the state to use that copy */
+
+/* numbers, strings, and booleans, these JS values are immutable,
+read-only
+I can trigger a re-render to replace a value */
+// const [x, setX] = useState(0);
+// setX(5);
+/* technically, the number 0 itself did not change, it's not 
+possible to make any changes to built-in primitives */
+
+/* How to correctly update an object in React state
+What's a mutation? 
+mutation - change to the contents of an object iself */
+// const [position, setPosition] = useState({ x: 0, y: 0 });
+// position.x = 5;
+
+/* Treat state as read-only
+  What immutability is, and how not to break it 
+  instead of mutating objects, I should always replace them 
+  ***treat any JS object that I put into state as read-only */
+function MovingDotOne() {
+  // the object in state represents the current pointer position
+  const [position, setPosition] = useState({
+    x: 0,
+    y: 0,
+  });
+  /* here, React has no idea that object has changed, so React
+does not do anything in response
+  return (
+    <div
+      onPointerMove={(e) => {
+        position.x = e.clientX;
+        position.y = e.clientY;
+      }}
+
+  this would actually trigger a re-render 
+  a new object is created and passed to the state setting function 
+  setPosition, tells React
+  - replace position with this new object
+  - and render this component again */
+  return (
+    <div
+      onPointerMove={(e) => {
+        setPosition({
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }}
+      style={{
+        position: "relative",
+        width: "100vw",
+        height: "100vh",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          backgroundColor: "red",
+          borderRadius: "50%",
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          left: -10,
+          top: -10,
+          width: 20,
+          height: 20,
+        }}
+      />
+    </div>
+  );
+}
+/* local mutation - mutating a fresh object I have just created is fine 
+                    because no other code references it yet, and changing
+                    it isn't going to impact something that depends on it
+// mutation is only a problem with I change existing objects 
+// that are already in state 
+const nextPosition = {};
+nextPosition.x = e.clientX;
+nextPosition.y = e.clientY;
+setPosition(nextPosition);
+
+when I store objects in state, mutating them will not trigger renders
+and will change the state in previous  render "snapshots"
+use {...obj, something: 'newValue'} object spread syntax to create copies of objects
+*/
+
+/* Copying objects with the spread syntax
+again, I need to create a new object and pass it to the updater function 
+... spread syntax is shallow and only copies things one level deep 
+if I want a nested property, I'll have to use the spread syntax more than once */
+function FormThree() {
+  /* I didn't declare a separate state variable for each input
+  for large forms, keep all data grouped in an object is convenient */
+  const [person, setPerson] = useState({
+    firstName: "Barbara",
+    lastName: "Hepworth",
+    email: "bhepworth@sculpture.com",
+  });
+
+  // I want to also copy existing data into it bc only one field has changed
+  function handleFirstNameChange(e) {
+    setPerson({
+      ...person,
+      firstName: e.target.value,
+    });
+  }
+  // I want to also copy existing data into it bc only one field has changed
+  function handleLastNameChange(e) {
+    setPerson({
+      ...person,
+      lastName: e.target.value,
+    });
+  }
+
+  // I want to also copy existing data into it bc only one field has changed
+  function handleEmailChange(e) {
+    setPerson({
+      ...person,
+      email: e.target.value,
+    });
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input value={person.firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name:
+        <input value={person.lastName} onChange={handleLastNameChange} />
+      </label>
+      <label>
+        Email:
+        <input value={person.email} onChange={handleEmailChange} />
+      </label>
+      <p>
+        {person.firstName} {person.lastName} ({person.email})
+      </p>
+    </>
+  );
+}
+
+function FormFour() {
+  const [person, setPerson] = useState({
+    firstName: "Barbara",
+    lastName: "Hepworth",
+    email: "bhepworth@sculpture.com",
+  });
+
+  function handleChange(e) {
+    setPerson({
+      ...person,
+      /* [ ] can be used inside my object definition
+      to specify a property with dynamic name
+      now the example has only one event handler instead
+      of three different event handlers 
+      e.target.name refers to the name property given to 
+      the input DOM element */
+      [e.target.name]: e.target.value,
+    });
+  }
+
+  return (
+    <>
+      <label>
+        First name:
+        <input
+          name="firstName"
+          value={person.firstName}
+          onChange={handleChange}
+        />
+      </label>
+      <label>
+        Last name:
+        <input
+          name="lastName"
+          value={person.lastName}
+          onChange={handleChange}
+        />
+      </label>
+      <label>
+        Email:
+        <input name="email" value={person.email} onChange={handleChange} />
+      </label>
+      <p>
+        {person.firstName} {person.lastName} ({person.email})
+      </p>
+    </>
+  );
+}
+
+/* Updating a nested object
+  nested objects aren't actually nested
+  they're actually separate objects "pointing" at each other with properties
+  How to update a nested object without mutating it 
+  
+  to update a nested object, I need to create copies all the way up from
+  the place I am updating */
+function FormFive() {
+  const [person, setPerson] = useState({
+    name: "Niki de Saint Phalle",
+    artwork: {
+      title: "Blue Nana",
+      city: "Hamburg",
+      image: "https://i.imgur.com/Sd1AgUOm.jpg",
+    },
+  });
+
+  function handleNameChange(e) {
+    setPerson({
+      ...person,
+      name: e.target.value,
+    });
+  }
+
+  // updating a nested object in a single function call
+  function handleTitleChange(e) {
+    setPerson({
+      ...person, // Copy other fields
+      artwork: {
+        // but replace the artwork
+        ...person.artwork, // with the same one
+        title: e.target.value, // but in New Delhi
+      },
+    });
+  }
+
+  function handleCityChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        city: e.target.value,
+      },
+    });
+  }
+
+  function handleImageChange(e) {
+    setPerson({
+      ...person,
+      artwork: {
+        ...person.artwork,
+        image: e.target.value,
+      },
+    });
+  }
+
+  return (
+    <>
+      <label>
+        Name:
+        <input value={person.name} onChange={handleNameChange} />
+      </label>
+      <label>
+        Title:
+        <input value={person.artwork.title} onChange={handleTitleChange} />
+      </label>
+      <label>
+        City:
+        <input value={person.artwork.city} onChange={handleCityChange} />
+      </label>
+      <label>
+        Image:
+        <input value={person.artwork.image} onChange={handleImageChange} />
+      </label>
+      <p>
+        <i>{person.artwork.title}</i>
+        {" by "}
+        {person.name}
+        <br />
+        (located in {person.artwork.city})
+      </p>
+      <img src={person.artwork.image} alt={person.artwork.title} />
+    </>
+  );
+}
+
+/* Write a concise update logic with Immer */
+function Scoreboard() {
+  const [player, setPlayer] = useState({
+    firstName: "Ranjani",
+    lastName: "Shettar",
+    score: 10,
+  });
+
+  function handlePlusClick() {
+    setPlayer({
+      ...player,
+      score: player.score + 1,
+    });
+  }
+
+  function handleFirstNameChange(e) {
+    setPlayer({
+      ...player,
+      firstName: e.target.value,
+    });
+  }
+
+  function handleLastNameChange(e) {
+    setPlayer({
+      ...player,
+      lastName: e.target.value,
+    });
+  }
+
+  return (
+    <>
+      <label>
+        Score: <b>{player.score}</b>{" "}
+        <button onClick={handlePlusClick}>+1</button>
+      </label>
+      <label>
+        First name:
+        <input value={player.firstName} onChange={handleFirstNameChange} />
+      </label>
+      <label>
+        Last name:
+        <input value={player.lastName} onChange={handleLastNameChange} />
+      </label>
+    </>
+  );
+}
+
+function Background({ position }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transform: `translate(
+        ${position.x}px,
+        ${position.y}px
+      )`,
+        width: 250,
+        height: 250,
+        backgroundColor: "rgba(200, 200, 0, 0.2)",
+      }}
+    />
+  );
+}
+
+function Box({ children, color, position, onMove }) {
+  const [lastCoordinates, setLastCoordinates] = useState(null);
+
+  function handlePointerDown(e) {
+    e.target.setPointerCapture(e.pointerId);
+    setLastCoordinates({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }
+
+  function handlePointerMove(e) {
+    if (lastCoordinates) {
+      setLastCoordinates({
+        x: e.clientX,
+        y: e.clientY,
+      });
+      const dx = e.clientX - lastCoordinates.x;
+      const dy = e.clientY - lastCoordinates.y;
+      onMove(dx, dy);
+    }
+  }
+
+  function handlePointerUp(e) {
+    setLastCoordinates(null);
+  }
+
+  return (
+    <div
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      style={{
+        width: 100,
+        height: 100,
+        cursor: "grab",
+        backgroundColor: color,
+        position: "absolute",
+        border: "1px solid black",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        transform: `translate(
+          ${position.x}px,
+          ${position.y}px
+        )`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+const initialPosition = {
+  x: 0,
+  y: 0,
+};
+
+function Canvas() {
+  const [shape, setShape] = useState({
+    color: "orange",
+    position: initialPosition,
+  });
+
+  function handleMove(dx, dy) {
+    setShape({
+      ...shape,
+      position: {
+        x: shape.position.x + dx,
+        y: shape.position.y + dy,
+      },
+    });
+  }
+
+  function handleColorChange(e) {
+    setShape({
+      ...shape,
+      color: e.target.value,
+    });
+  }
+
+  return (
+    <>
+      <select value={shape.color} onChange={handleColorChange}>
+        <option value="orange">orange</option>
+        <option value="lightpink">lightpink</option>
+        <option value="aliceblue">aliceblue</option>
+      </select>
+      <Background position={initialPosition} />
+      <Box color={shape.color} position={shape.position} onMove={handleMove}>
+        Drag me!
+      </Box>
+    </>
+  );
+}
+
+/* Updating arrays in state
+like with objects, if I want to update an array stored in state, I need to
+create a new one or making a copy of an existing one, and then set state to
+use the new array
+
+Updating arrays without mutation
+for updating an array, pass a new array to the state setting function
+I can create a new array from the original array in my state by calling non-mutating
+methods like filter() and map(), then set my state to the resulting new array
+avoid push and unshift for adding - prefer concat and [...arr]
+avoid pop, shift, and splice for removing - prefer filter and slice
+splice - mutates to insert or delete items  slice - lets me copy an array or a part of it
+(In React, I will use slice a lot more often than splice)
+avoid splice and arr[i] = ... for replacing - prefer map
+avoid reverse and sort for sorting - prefer copying the array first 
+
+I can put arrays into state, but I can't change them
+instead of mutating an array, I need to create new version of it, and update the state to it
+
+How to add, remove, or change items in an array in React state
+Adding to an array
+*/
+let theNextId = 0;
+
+function List() {
+  const [name, setName] = useState("");
+  const [artists, setArtists] = useState([]);
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <input value={name} onChange={(e) => setName(e.target.value)} />
+      <button
+        onClick={() => {
+          // create a new array which contains the existing
+          // items and a new item at the end
+          setArtists(
+            // replace the state
+            [
+              // with a new array
+              ...artists, // that contains all the old items
+              { id: theNextId++, name: name },
+            ]
+          ); // and one new item at the end
+          // setArtists([ // or I can prepend an item by placing it before the original array
+          // </>{ id: nextId++, name: name },
+          // ...artists // Put old items at the end
+          // ]);
+        }}
+      >
+        Add
+      </button>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>{artist.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+/* spread can do the job of both push() by adding to the end of an 
+array and unshift() by adding to the beginning of an array 
+
+I can use [...arr, newItem] array spread syntax to create arrays with new items */
+
+/* Removing from an array
+easiest way to remove an item from an array is to filter it out */
+let initialArtists = [
+  { id: 0, name: "Marta Colvin Andrade" },
+  { id: 1, name: "Lamidi Olonade Fakeye" },
+  { id: 2, name: "Louise Nevelson" },
+];
+
+function ListOne() {
+  const [artists, setArtists] = useState(initialArtists);
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>
+            {artist.name}{" "}
+            <button
+              onClick={() => {
+                /* clicking with create an array that consists of those artists 
+                whose IDs are different from artist.id 
+                and then request a re-render with the resulting array */
+                setArtists(artists.filter((a) => a.id !== artist.id));
+              }}
+            >
+              Delete
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+// Transforming an array
+// I can use filter() and map() to create new arrays with
+// filtered or transformed items
+let initialShapes = [
+  { id: 0, type: "circle", x: 50, y: 100 },
+  { id: 1, type: "square", x: 150, y: 100 },
+  { id: 2, type: "circle", x: 250, y: 100 },
+];
+
+function ShapeEditor() {
+  const [shapes, setShapes] = useState(initialShapes);
+
+  function handleClick() {
+    /* to change some or all items of an array, 
+    map() creates a new nextShapes array */
+    const nextShapes = shapes.map((shape) => {
+      if (shape.type === "square") {
+        // No change
+        return shape;
+      } else {
+        // Return a new circle 50px below
+        return {
+          ...shape,
+          y: shape.y + 50,
+        };
+      }
+    });
+    // Re-render with the new array
+    setShapes(nextShapes);
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Move circles down!</button>
+      {shapes.map((shape) => (
+        <div
+          key={shape.id}
+          style={{
+            background: "purple",
+            position: "absolute",
+            left: shape.x,
+            top: shape.y,
+            borderRadius: shape.type === "circle" ? "50%" : "",
+            width: 20,
+            height: 20,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+/* Replacing items in an array
+to replace an item, create a new array with map */
+let initialCounters = [0, 0, 0];
+
+function CounterList() {
+  const [counters, setCounters] = useState(initialCounters);
+
+  function handleIncrementClick(index) {
+    // inside my map call, receive the item index as the second argument
+    const nextCounters = counters.map((c, i) => {
+      // or do something else
+      if (i === index) {
+        // Increment the clicked counter
+        return c + 1;
+        // use it to decide whether to return the original item (the first argument)
+      } else {
+        // The rest haven't changed
+        return c;
+      }
+    });
+    setCounters(nextCounters);
+  }
+
+  return (
+    <ul>
+      {counters.map((counter, i) => (
+        <li key={i}>
+          {counter}
+          <button
+            onClick={() => {
+              handleIncrementClick(i);
+            }}
+          >
+            +1
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* Inserting into an array */
+let thisNextId = 3;
+const theInitialArtists = [
+  { id: 0, name: "Marta Colvin Andrade" },
+  { id: 1, name: "Lamidi Olonade Fakeye" },
+  { id: 2, name: "Louise Nevelson" },
+];
+
+function ListTwo() {
+  const [name, setName] = useState("");
+  const [artists, setArtists] = useState(theInitialArtists);
+
+  function handleClick() {
+    // insert button will always insert at index 1
+    const insertAt = 1; // Could be any index
+    const nextArtists = [
+      // spread the slice ofitems before the insertion point:
+      ...artists.slice(0, insertAt),
+      // New item:
+      /* thisNextId++ post-increment, current value of thisNextId, 3, 
+      is assigned to the id field of the new artist
+      after that, thisNextId is incremented */
+      { id: thisNextId++, name: name },
+      // Items after the insertion point:
+      ...artists.slice(insertAt),
+    ];
+    setArtists(nextArtists);
+    setName("");
+  }
+
+  return (
+    <>
+      <h1>Inspiring sculptors:</h1>
+      <input value={name} onChange={(e) => setName(e.target.value)} />
+      <button onClick={handleClick}>Insert</button>
+      <ul>
+        {artists.map((artist) => (
+          <li key={artist.id}>{artist.name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/* Making other changes to an array 
+JS reverse() and sort() mutate the original array, so I can't use
+them directly, but I can copy the array first and then make changes to it */
+const thisInitialList = [
+  { id: 0, title: "Big Bellies" },
+  { id: 1, title: "Lunar Landscape" },
+  { id: 2, title: "Terracotta Army" },
+];
+
+export default function ListThree() {
+  const [list, setList] = useState(thisInitialList);
+
+  function handleClick() {
+    // copy the array first
+    /* even if I copy the array, I can't mutate existing
+    items inside of it directly bc copying is shallow
+    the new array will contain the same items as the original one 
+    I can solve this issue by doing what I did 
+    to update nested JS objects, by copying individual items
+    I want to change instead of mutating them */
+    const nextList = [...list];
+    // use the mutating method
+    nextList.reverse();
+    setList(nextList);
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Reverse</button>
+      <ul>
+        {list.map((artwork) => (
+          <li key={artwork.id}>{artwork.title}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/* How to update an object inside of an array
+Updating objects inside arrays 
+objects aren't really "inside" arrays
+each object in an array is a separate value to which the array "points"
+another array may "point" to the same object
+when updating nested state, I need to create copies from the 
+point where I want to update, and all the way up to the top level */
+
+let thatNextId = 3;
+const thatInitialList = [
+  { id: 0, title: "Big Bellies", seen: false },
+  { id: 1, title: "Lunar Landscape", seen: false },
+  { id: 2, title: "Terracotta Army", seen: true },
+];
+
+function BucketList() {
+  const [myList, setMyList] = useState(thatInitialList);
+  const [yourList, setYourList] = useState(thatInitialList);
+
+  function handleToggleMyList(artworkId, nextSeen) {
+    /* myNextList array is new, but the items themselves 
+    are the same as in the myList array,
+    so changing artwork.seen changes the original artwork item
+    const myNextList = [...myList];
+    const artwork = myNextList.find(a => a.id === artworkId);
+    artwork.seen = nextSeen; // Problem: mutates an existing item
+    setMyList(myNextList); 
+    */
+    /* map substitutes an old item with its updated version 
+    without mutation */
+    setMyList(
+      myList.map((artwork) => {
+        if (artwork.id === artworkId) {
+          // Create a *new* object with changes
+          // ... object spread syntax creates a copy of the objects
+          // none of the existing state items are being mutated
+          return { ...artwork, seen: nextSeen };
+        } else {
+          // No changes
+          return artwork;
+        }
+      })
+    );
+  }
+
+  function handleToggleYourList(artworkId, nextSeen) {
+    setYourList(
+      yourList.map((artwork) => {
+        if (artwork.id === artworkId) {
+          // Create a *new* object with changes
+          return { ...artwork, seen: nextSeen };
+        } else {
+          // No changes
+          return artwork;
+        }
+      })
+    );
+  }
+
+  return (
+    <>
+      <h1>Art Bucket List</h1>
+      <h2>My list of art to see:</h2>
+      <ItemList artworks={myList} onToggle={handleToggleMyList} />
+      <h2>Your list of art to see:</h2>
+      <ItemList artworks={yourList} onToggle={handleToggleYourList} />
+    </>
+  );
+}
+
+function ItemList({ artworks, onToggle }) {
+  return (
+    <ul>
+      {artworks.map((artwork) => (
+        <li key={artwork.id}>
+          <label>
+            <input
+              type="checkbox"
+              checked={artwork.seen}
+              onChange={(e) => {
+                onToggle(artwork.id, e.target.checked);
+              }}
+            />
+            {artwork.title}
+          </label>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* I should only mutate objects that I have just created 
+if I'm dealing with something that's already in state, I need to make a copy */
+
+const initialProducts = [
+  {
+    id: 0,
+    name: "Baklava",
+    count: 1,
+  },
+  {
+    id: 1,
+    name: "Cheese",
+    count: 5,
+  },
+  {
+    id: 2,
+    name: "Spaghetti",
+    count: 2,
+  },
+];
+
+function ShoppingCart() {
+  const [products, setProducts] = useState(initialProducts);
+
+  function handleIncreaseClick(productId) {
+    setProducts(
+      // iterates through products array
+      products.map((product) => {
+        // if product.id matches productId
+        if (product.id === productId) {
+          // returns a new updated product object
+          return {
+            ...product,
+            count: product.count + 1,
+          };
+          // otherwise, return product
+        } else {
+          return product;
+        }
+      })
+    );
+  }
+
+  function handleDecreaseClick(productId) {
+    setProducts(
+      products
+        // iterates through products array
+        .map((product) => {
+          // if product.id matches productId and the product.count is greater than 0
+          if (product.id === productId && product.count > 0) {
+            // return a new updated product object
+            return {
+              ...product,
+              // Decrease the count if it's greater than 1
+              count: product.count - 1,
+            };
+          }
+          // otherwise, return object
+          return product;
+        })
+        // remove the product if product.id matches productId and its count is 0
+        .filter((product) => !(product.id === productId && product.count === 0))
+    );
+  }
+
+  /* 
+  function handleDecreaseClick(productId) {
+    let nextProducts = products.map(product => {
+      if (product.id === productId) {
+        return {
+          ...product,
+          count: product.count - 1
+        };
+      } else {
+        return product;
+      }
+    });
+    nextProducts = nextProducts.filter(p =>
+      p.count > 0
+    );
+    setProducts(nextProducts)
+  }
+  */
+
+  return (
+    <ul>
+      {products.map((product) => (
+        <li key={product.id}>
+          {product.name} (<b>{product.count}</b>)
+          <button
+            onClick={() => {
+              handleIncreaseClick(product.id);
+            }}
+          >
+            +
+          </button>
+          <button
+            onClick={() => {
+              handleDecreaseClick(product.id);
+            }}
+          >
+            –
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AddTodo({ onAddTodo }) {
+  const [title, setTitle] = useState("");
+  return (
+    <>
+      <input
+        placeholder="Add todo"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <button
+        onClick={() => {
+          setTitle("");
+          onAddTodo(title);
+        }}
+      >
+        Add
+      </button>
+    </>
+  );
+}
+
+function TaskList({ todos, onChangeTodo, onDeleteTodo }) {
+  return (
+    <ul>
+      {todos.map((todo) => (
+        <li key={todo.id}>
+          <Task todo={todo} onChange={onChangeTodo} onDelete={onDeleteTodo} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ todo, onChange, onDelete }) {
+  const [isEditing, setIsEditing] = useState(false);
+  let todoContent;
+  if (isEditing) {
+    todoContent = (
+      <>
+        <input
+          value={todo.title}
+          onChange={(e) => {
+            onChange({
+              ...todo,
+              title: e.target.value,
+            });
+          }}
+        />
+        <button onClick={() => setIsEditing(false)}>Save</button>
+      </>
+    );
+  } else {
+    todoContent = (
+      <>
+        {todo.title}
+        <button onClick={() => setIsEditing(true)}>Edit</button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={todo.done}
+        onChange={(e) => {
+          onChange({
+            ...todo,
+            done: e.target.checked,
+          });
+        }}
+      />
+      {todoContent}
+      <button onClick={() => onDelete(todo.id)}>Delete</button>
+    </label>
+  );
+}
+
+let hereNextId = 3;
+const initialTodos = [
+  { id: 0, title: "Buy milk", done: true },
+  { id: 1, title: "Eat tacos", done: false },
+  { id: 2, title: "Brew tea", done: false },
+];
+
+function TaskApp() {
+  const [todos, setTodos] = useState(initialTodos);
+
+  function handleAddTodo(title) {
+    setTodos([...todos, { id: hereNextId++, title: title, done: false }]);
+  }
+
+  function handleChangeTodo(nextTodo) {
+    setTodos(
+      todos.map((todo) => {
+        if (todo.id === nextTodo.id) {
+          return nextTodo;
+        } else {
+          return todo;
+        }
+      })
+    );
+
+    function handleDeleteTodo(todoId) {
+      setTodos(todos.filter((todo) => todo.id !== todoId));
+    }
+
+    return (
+      <>
+        <AddTodo onAddTodo={handleAddTodo} />
+        <TaskList
+          todos={todos}
+          onChangeTodo={handleChangeTodo}
+          onDeleteTodo={handleDeleteTodo}
+        />
+      </>
+    );
+  }
+}
+
 export {
   Person,
   PersonOne,
@@ -1681,4 +2907,24 @@ export {
   ToolbarFive,
   Signup,
   LightSwitch,
+  CounterThree,
+  CounterFour,
+  CounterFive,
+  RequestTracker,
+  AppOne,
+  MovingDotOne,
+  FormThree,
+  FormFour,
+  FormFive,
+  Scoreboard,
+  Canvas,
+  List,
+  ListOne,
+  ShapeEditor,
+  CounterList,
+  ListTwo,
+  ListThree,
+  BucketList,
+  ShoppingCart,
+  TaskApp,
 };

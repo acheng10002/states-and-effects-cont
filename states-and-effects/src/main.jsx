@@ -28,6 +28,25 @@ import {
   ToolbarFour,
   Signup,
   LightSwitch,
+  CounterThree,
+  CounterFour,
+  CounterFive,
+  RequestTracker,
+  AppOne,
+  MovingDotOne,
+  FormThree,
+  FormFour,
+  Scoreboard,
+  Canvas,
+  List,
+  ListOne,
+  ShapeEditor,
+  CounterList,
+  ListTwo,
+  ListThree,
+  BucketList,
+  ShoppingCart,
+  TaskApp,
 } from "./App.jsx";
 import "./index.css";
 
@@ -60,5 +79,24 @@ createRoot(document.getElementById("root")).render(
     <ToolbarFour />
     <Signup />
     <LightSwitch />
+    <CounterThree />
+    <CounterFour />
+    <CounterFive />
+    <RequestTracker />
+    <AppOne />
+    <MovingDotOne />
+    <FormThree />
+    <FormFour />
+    <Scoreboard />
+    <Canvas />
+    <List />
+    <ListOne />
+    <ShapeEditor />
+    <CounterList />
+    <ListTwo />
+    <ListThree />
+    <BucketList />
+    <ShoppingCart />
+    <TaskApp />
   </StrictMode>
 );

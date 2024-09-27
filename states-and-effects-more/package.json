@@ -1,13 +1,11 @@
 {
-  "name": "states-and-effects",
+  "name": "states-and-effects-more",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "react-scripts start",
     "dev": "vite",
     "build": "vite build",
-    "test": "react-scripts test --env=jsdom",
     "lint": "eslint .",
     "preview": "vite preview"
   },

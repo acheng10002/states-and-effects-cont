@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>States and Effects More</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div>
+      <form id="form">
+        <h2>City quiz</h2>
+        <p>What city is located on two continents?</p>
+        <textarea id="textarea"></textarea>
+        <br />
+        <button id="button" disabled>Submit</button>
+        <p id="loading" style="display: none">Loading...</p>
+        <p id="error" style="display: none; color: red"></p>
+      </form>
+      <h1 id="success" style="display: none">That's right!</h1>
+    </div>
+    <div>
+      <form id="formOne">
+        <label>
+          First name:
+          <b id="firstNameText">Jane</b>
+          <input id="firstNameInput" value="Jane" style="display: none" />
+        </label>
+        <label>
+          Last name:
+          <b id="lastNameText">Jacobs</b>
+          <input id="lastNameInput" value="Jacobs" style="display: none" />
+        </label>
+        <button type="submit" id="editButton">Edit Profile</button>
+        <p><i id="helloText">Hello, Jane Jacobs!</i></p>
+      </form>
+    </div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
