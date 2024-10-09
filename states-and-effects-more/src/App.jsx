@@ -1,6 +1,6 @@
 /* useState - React hook that I can call from my component 
               and it lets my component "remember" things */
-import { useState } from "react";
+import { useEffect, createContext, useContext, useState } from "react";
 // import reactLogo from "./assets/react.svg";
 // import viteLogo from "/vite.svg";
 import "./App.css";
@@ -2485,6 +2485,1359 @@ function Person() {
   );
 }
 
+/* shows how many seconds have passed since the user has loaded the 
+webpage
+updates every second */
+function Clock() {
+  const [counter, setCounter] = useState(0);
+
+  /* adds one to the counter state variable every second 
+  setInterval is getting called at every state render 
+  1. component first renders
+  2. component calls initial setInterval function
+  3. interval updates the state every second
+  4. state update triggers re-render
+  5. every re-render calls setInterval again
+  6. setInterval triggers more frequent state updates
+  7. each state update spawns new intervals */
+  setInterval(() => {
+    setCounter((count) => count + 1);
+  }, 1000);
+
+  return <p>{counter} seconds have passed.</p>;
+}
+
+/* escape hatches - mechanisms that allow me to bypass or step outside the
+                    normal constraints provided by React's declarative model
+*/
+
+/* by default, useEffect hook runs on every render and I get multiple
+setter calls on every render 
+second argument of useEffect, accepts an array of dependencies allowing
+the hook to re-render only when those dependencies change 
+ex. if I have a state variable and want to have a side-effect occur any
+    time the state changes, I can use this hook and mention the state
+    variable in the dependency array */
+function ClockOne() {
+  const [counter, setCounter] = useState(0);
+
+  /* calculation gets wrapped inside a useEffect hook to move it
+  outside the rendering calculation 
+  useEffect accepts a callback with all the calculations */
+  useEffect(() => {
+    setInterval(() => {
+      setCounter((count) => count + 1);
+    }, 1000);
+    /* empty array tells React that I don't want the useEffect hook to run
+    anytime other than the initial component render 
+    when the component is unmounted, setInterval is not stopped, it keeps
+    incrementing  */
+  }, []);
+
+  return <p>{counter} seconds have passed.</p>;
+}
+
+function ClockTwo() {
+  const [counter, setCounter] = useState(0);
+
+  useEffect(() => {
+    const key = setInterval(() => {
+      setCounter((count) => count + 1);
+    }, 1000);
+
+    /* cleanup function will be executed each time before the next effect is run
+    and one final time when the component is unmounted 
+    cleans up the interval with a cleanup function 
+    if I don't clean up resources, memory leaks can occur, causing performance 
+    issues bc event listeners, subscriptions, or nework requests will still exist
+    even though the component is no longer in use */
+    return () => {
+      clearInterval(key);
+    };
+  }, []);
+
+  return <p>{counter} seconds have passed.</p>;
+}
+
+function MyComponent() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    // Effect that runs after every render
+    // 1. component mounts/ first renders, useEffect runs after the initial render
+    //    count is set to 0 from useState
+    //    useEffect hook runs, logging "You clicked 0 times"
+    //    no cleanup function to run before this point bc no previous effect to clean up
+    console.log(`You clicked ${count} times`);
+
+    /* cleanup function runs before the next effect or when the component unmounts/
+    is removed from the DOM when React no longer needs the component (when user
+    navigates away from the component's view, conditionally renders another component,
+    or destroys it for any reason */
+    return () => {
+      console.log(
+        "Cleanup before effect runs again or when component unmounts"
+      );
+    };
+    // 2. when count is updated, component re-renders
+    //    before the new effect runs, React calls the cleanup function from the previous effect
+    //    when the state changes, React cleans up the last effect before applying the new one
+  }, [count]); // effect only re-runs when `count` changes
+  // 3. after the cleanup, newEffect runs with the updated count value
+
+  return (
+    <div>
+      <p>You clicked {count} times</p>
+      <button onClick={() => setCount(count + 1)}>Click me</button>
+    </div>
+  );
+}
+
+/* for a change in a component, due to a change in the props, I can calculate and set it 
+during rendering */
+function AdditionDisplay() {
+  const [number1, setNumber1] = useState(0);
+  const [number2, setNumber2] = useState(0);
+
+  // This is all unnecessary.
+
+  // const [sum, setSum] = useState(0);
+  // useEffect(() => {
+  //   setSum(number1 + number2);
+  // }, [number1, number2]);
+
+  const sum = number1 + number2;
+
+  return (
+    <p>
+      {number1} + {number2} = {sum}
+    </p>
+  );
+}
+
+/* I do not need effects for events
+code that runs when a component is displayed should be in effects, the rest should
+be in events */
+function AppTwelve() {
+  const [input, setInput] = useState("");
+
+  const handleInput = (e) => {
+    setInput(e.target.value);
+  };
+
+  // You should avoid direct manipulation when not necessary
+
+  // useEffect(() => {
+  //   document.getElementById("name").addEventListener("change", handleInput);
+  //   return () => {
+  //     document.getElementById("name").removeEventListener("change", handleInput);
+  //   }
+  // });
+
+  return (
+    <>
+      {/* <input id="name" /> */}
+
+      <input onChange={handleInput} value={input} />
+      <p>{input}</p>
+    </>
+  );
+}
+
+/* key helps React id elements, allow it to manage and update them more efficiently
+when the key changes, React will treat the component as a new one, "resetting" it 
+based on state changes */
+function Timer() {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // update seconds every 1 second
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+
+    // cleanup the interval on component unmount
+    return () => clearInterval(interval);
+
+    /* no dependencies in the array, meaning I do not want the useEffect hook to run
+    anytime other than the initial component render */
+  }, []);
+
+  return <div>Timer: {seconds} seconds</div>;
+}
+
+function AppThirteen() {
+  const [resetCount, setResetCount] = useState(0);
+  const resetTimer = () => {
+    // update state to trigger a reset of the Timer component
+    setResetCount((prev) => prev + 1);
+  };
+
+  return (
+    <div>
+      <h1>Timer Reset Example</h1>
+      {/* assigning a key to the Timer component based on a state variable, forces 
+      React to treat it as a new instance whenever that states changes thereby 
+      resetting the timer */}
+      <Timer key={resetCount} />
+      <button onClick={resetTimer}>Reset Timer</button>
+    </div>
+  );
+}
+
+/* effect is independent from my component's lifecycle 
+effect - how to synchronize an external system to the current props and state 
+         as my code changes, synchronization will need to happen more or less often 
+this effect connects my component to a chat server */
+const serverUrl = "https://localhost:1234";
+
+// sometimes it is necessary to start and stop synchronizing multiple times
+// why is this necessary...
+// ChatRoom component receives the "general" roomId prop that the user picks in a dropdown
+/* my app displays the "general" chat room
+function ChatRoom({ roomId /* "general" }) {
+  useEffect(() => {
+    // after the UI is displayed, React runs my Effect to start 
+    // synchronizing, React connects to the "general" room
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  return <h1>Welcome to the {roomId} room </h>
+} 
+
+// user picks a different room, "travel", React will update the UI
+// Effect that ran last time is still connected to the "general" room
+// roomId prop has changed, so what my Effect did back then no longer matches the UI
+// React does two things:
+// 1. stops synchronizing with the old roomId- disconnect from the "general" room
+// 2. starts synchronizing with the new roomId- connect to the "travel" room
+// React already knows how to do both
+// effect's body specifies how to start synchronizing
+// effect's cleanup function specifies how to stop synchronizing
+function ChatRoom({ roomId /* "travel" }) {
+  useEffect(() => {
+    // ...
+  return <h1>Welcome to the {roomId} room </h>
+} 
+*/
+
+// when does it happen
+// how can I control this behavior
+// how React re-synchronizes my Effect
+/* 
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    // 2. to start synchronizing
+    // React runs the Effect that I'm provided during this render
+    // React starts synchronizing to the "travel" chat room
+    // until its cleanup function is eventually called too 
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      // 1. to stop synchronizing
+      // React calls the cleanup function that my Effect returned after connecting
+      // to the "general" room
+      // cleanup function disconnects from the "general" room
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+*/
+
+/* every time after my component re-renders with a different roomId, my Effect will re-synchronize
+user changes roomId from "travel" to "music", React will again stop synchronizing my Effect by
+calling its cleanup function, disconnecting me from the "travel" room
+then it starts synchronizing again by running its body with the new roomId prop, connecting me
+to the "music" room
+
+when the user goes to a different screen, ChatRoom unmounts 
+there is no need to stay connected at all, so React will stop synchronizing my Effect one last time
+and disconnects me from the "music" chat room
+*/
+
+/* ChatRoom's perspective/ what Effect does
+1. ChatRoom mounted with roomId set to "general"/ Effect connected to the "general" room
+2. ChatRoom updated with roomId set to "travel"/ Effect disconnected from the "general" room and connected to the "travel" room
+3. ChatRoom updated with roomId set to "music"/ Effect disconnected from the "travel" room and connected to the "music" room
+4. ChatRoom unmounted/ Effect disconnected from the "music" room 
+
+Effect's perspective - it's a sequence of non-overlapping time periods
+think of them in terms of single start synchronization/stop synchronization cycle at a time
+(no need to for me to think of whether a component is mounting or updating when I write 
+rendering logic that creates JSX- I simply describe what should be on the screen, and 
+React figures out the rest)
+1. Effect connected to the "general" room (until it disconnected)
+2. Effect connected to the "travel" room (until it disconnected)
+3. Effect connected to the "music" room (until it disconnected)
+*/
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    // effect's body specifies how to start synchronizing
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      // cleanup function specifies how to stop synchronizing
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+
+// utility that creates an object representing a connection to a specific server and room
+function createConnection(serverUrl, roomId) {
+  return {
+    connect() {
+      console.log(
+        '✅  Connecting to "' + roomId + '" room at ' + serverUrl + "..."
+      );
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    },
+  };
+}
+
+function ChatRoomOne({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+function AppFifteen() {
+  const [roomId, setRoomId] = useState("general");
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{" "}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? "Close chat" : "Open chat"}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoomOne roomId={roomId} />}
+    </>
+  );
+}
+
+/*  1. ✅ Connecting to "general" room at https://localhost:1234... (development-only)
+    2. ❌ Disconnected from "general" room at https://localhost:1234 (development-only)
+    3. ✅  Connecting to "general" room at https://localhost:1234...
+
+    in development, React always remounts each component onces
+    React verifies that my Effect can re-synchronize by forcing it to do that immediately
+    in development to check I've implemented its cleanup well
+
+    my Effect will re-synchronize in practice if some data it uses has changed
+*/
+
+/* How React knows it needs to re-synchronize the Effect 
+// I told React that its code depends on roomId by including it in the list of dependencies
+// 1. roomId is a prop, which means it can change over time 
+function ChatRoomOne({ roomId }) {
+  useEffect(() => {
+    // 2. I knew that my effect reads roomId (its logic depends on a value that may change later)
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  // 3. bc effect reads roomId, I specified it as my effect's dependency, so that it 
+  //    re-synchronizes when roomId changes
+  //    every time my component re-renders, React will look at the array of dependencies that I have 
+  //    passed, and if any of the values in the array is different from the value at the same spot
+  //    that I passed during the previous render, React will re-synchronize my effect 
+  }, [roomId]);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+I passed ["general"] during the initial render
+I later passed ["travel"] during the next render, 
+these are different values (compared with Object.is), so React will re-synchronize my effect
+if my component re-renders, but roomId has not changed, my effect will remain connected to the same room */
+
+/* Each effect represents a separate synchronization process 
+if I want to add an analytics event when the user visits the room
+logging the visit must be a separate process from connecting
+they must be written as two separate effects */
+function ChatRoomTwo({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+  }, [roomId]);
+  /* deleting one effect wouldn't break the other effect's logic 
+  they synchronize different things, so it makes sense to split them up 
+  however, if I split up a cohesive piece of logic into separate effects, 
+  the code will be more difficult to maintain */
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    /* Effects "react" to reactive values 
+  why doesn't serverUrl need to be a dependency?
+  serverUrl never changes due to a re-render, it's always the same no matter how many times
+  the component re-renders and why 
+  *dependencies only do something when they change over time 
+  roomId may be different on a re-render
+  *** props, state, and other values declared inside a component are reactive because they're 
+  calculated during rendering and participate in the React data flow 
+  reactive values must be included in dependencies */
+  }, [roomId]);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+function AppSeventeen() {
+  const [roomId, setRoomId] = useState("general");
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{" "}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? "Close chat" : "Open chat"}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoomTwo roomId={roomId} />}
+    </>
+  );
+}
+
+function ChatRoomThree({ roomId }) {
+  // state may change over time
+  const [serverUrl, setServerUrl] = useState("https://localhost:1234");
+
+  useEffect(() => {
+    // my effect reads props and state
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    // so I tell React that this effect "depends on" props and state
+    // by including serverUrl, I ensure that the effect re-synchronizes after it changes
+    // whenever I change a reactive value like roomId or serverUrl,
+    // effect re-connects to the chat server
+  }, [roomId, serverUrl]);
+  return (
+    <>
+      <label>
+        Server URL:{" "}
+        <input
+          value={serverUrl}
+          onChange={(e) => setServerUrl(e.target.value)}
+        />
+        <h1>Welcome to the {roomId} room!</h1>
+      </label>
+    </>
+  );
+}
+
+function AppEighteen() {
+  const [roomId, setRoomId] = useState("general");
+  return (
+    <>
+      <label>
+        Choose the chat room:{" "}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoomThree roomId={roomId} />
+    </>
+  );
+}
+
+/* What an effect with empty dependencies means 
+if both serverUrlOne and roomId are outside the component, my effect's code does
+not use any reactive values, so its dependencies can be empty */
+const serverUrlOne = "https://localhost:1234";
+const roomId = "general";
+
+/* empty dependency array means this Effect connects to the chat room only
+when the componet mounts, and disconnects only when the component unmounts */
+function ChatRoomFour() {
+  /* I've specified what my effect does to start and stop synchronizing 
+  right now it has no reactive dependencies */
+  useEffect(() => {
+    // my effect reads props and state
+    const connection = createConnection(serverUrlOne, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    /* if I ever want the user to change roomId or serverUrlOne over time,
+    and I would make them reactive, I only need to add them to the dependencies */
+  }, []);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+function AppNineteen() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? "Close chat" : "Open chat"}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoomFour />}
+    </>
+  );
+}
+
+/* firewall - device or software that monitors and controls incoming and outgoing network 
+              traffic based on predefined security rules
+switch - network device that connects multiple devices within a LAN 
+context - mechanism that allows me to share state or data across multiple components without
+          having to pass props down manually through every level of the component tree 
+          useful when I have data that needs to be accessed by many components at different
+          nesting levels, such as a theme, user information, or global setting
+
+All variables declared in the component body are reactive 
+includes props, state, and all other variables from the component body 
+and they should all be in the effect dependency list
+if any of them change, my component will re-render */
+
+const SettingsContext = createContext();
+
+function SettingsProvider({ children }) {
+  const [defaultServerUrl, setDefaultServerUrl] = useState(
+    "https://default-server.com"
+  );
+
+  const settings = {
+    defaultServerUrl,
+    setDefaultServerUrl,
+  };
+
+  return (
+    <SettingsContext.Provider value={settings}>
+      {children}
+    </SettingsContext.Provider>
+  );
+}
+
+/* roomId, settings, and serverUrl are all reactive */
+function ChatRoomFive({ roomId, selectedServerUrl }) {
+  const settings = useContext(SettingsContext);
+  /* ?? - nullish coalescing operator 
+  if selectedServerUrl is null or undefined, settings.defaultServerUrl is the fallback value 
+  serverUrl is not a prop or state, it's a regular variable calculated during rendering, 
+  bc it's calculated during rendering, it can change due to re-render */
+  const serverUrl = selectedServerUrl ?? settings.defaultServerUrl;
+  /* again, Effect handles the synchronization of the connection to a chat room */
+  useEffect(() => {
+    /* connection is that object representing a conenction to a specific server and room
+    my effect reads roomId and serverUrl */
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId, serverUrl]); // So my effect needs to re-synchonize when either of the variables change
+}
+
+function AppTwenty() {
+  const [roomId, setRoomId] = useState("general");
+  return (
+    <SettingsProvider>
+      <label>
+        Choose the chat room:{" "}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoomFive roomId={roomId} />
+    </SettingsProvider>
+  );
+}
+
+/* mutable values, including global variables, aren't reactive 
+
+if my linter is configured for React, it will check that every reactive value 
+used by my code is declared as its dependency 
+
+React verifies that I specified every reactive value as a dependency 
+in some cases, React knows that a value never changes even though it's declared
+  inside the component
+  set function returned from useState and the ref object returned by useRef are stable,
+    they are guaranteed to not change on a re-render
+    stable values aren't reactive */
+
+/* What to do when I don't want to re-synchronized
+I can "prove" to the linter that these values aren't reactive values (i.e. they can't change as a 
+result of a re-render) 
+const serverUrl = 'https://localhost:1234'; // serverUrl is not reactive
+const roomId = 'general'; // roomId is not reactive
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  // if serverUrl and roomId don't dependen on rendering and always have the same valyes, I can move them
+  // outside the component or inside the effect
+  }, []); // ✅ All dependencies declared
+  // ...
+} */
+
+function MyComponentOne() {
+  /* 1. MOUNTING - React inserts the component into the DOM for the first time 
+        1b. EFFECT SETUP - useEffect hook runs first: I can initialize subscriptions, fetch data, etc. 
+            logging is initialized */
+  useEffect(() => {
+    /* 1c. EFFECT RUNS AFTER RENDERING - useEffect callback runs after the initial render, 
+           ensures any DOM-related effects work 
+           MyComponentOne's useEffect hook runs, logging "Component mounted" to the console */
+    console.log("Component mounted");
+
+    /* cleanup function that React will call later when the component unmounts 
+       this cleanup runs when the component unmounts 
+       2. UNMOUNTING - React removes the component from the DOM, happens:
+          (when component is conditionally rendered, and the condition (show) changes,
+          when the user navigates away from the component (e.g. in a router based app,
+          when the component is otherwise removed from the view)
+          2a. before unmounting, React runs this cleanup function logging "Component unmounted" 
+          2b. <MyComponentOne /> no longer gets rendered because AppFourteen conditionally renders it
+              based on show, React unmounts MyComponentOne and removes it from the DOM */
+    return () => {
+      console.log("Component unmounted");
+    };
+  }, []);
+  // 1a. React renders this div
+  return <div>Hello, I am mounted!</div>;
+}
+
+function AppFourteen() {
+  const [show, setShow] = useState(true);
+
+  return (
+    <div /* BEFORE MOUNTING - initial render of AppFourteen
+            
+    AppFourteen renders button and conditionally renders MyComponentOne bc show is initially true 
+    2. UPDATING - some of a component's props or state have changed, triggering a re-render 
+       2a. clicking the button toggles the show state,
+           causing AppFourteen to re-render */
+    >
+      <button onClick={() => setShow(!show)}>Toggle Component</button>
+      {
+        /* MyComponentOne doesn't have any state or props, so it won't re-render based on updates 
+        2b. if show is true, MyComponentOne remains mounted but no new render 
+        2c. if show is false, AppFourteen re-renders without MyComponentOne, 
+            leading to the unmounting of MyComponentOne */
+        show && <MyComponentOne />
+      }
+    </div>
+  );
+}
+
+const serverUrlTwo = "https://localhost:1234";
+
+function ChatRoomSix({ roomId }) {
+  const [message, setMessage] = useState("");
+
+  /* message doesn't need to be included in the dependency array bc
+  its value is not used inside the effect */
+  useEffect(() => {
+    const connection = createConnection(serverUrlTwo, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    /* every reactive value should be in the array of dependencies
+    this ensures that when the user selects a different room, the chat 
+    reconnects
+    serverUrlTwo is defined outside the component, so it doesn't need to
+    be in the array */
+  }, [roomId]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={(e) => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+function AppTwentyOne() {
+  const [roomId, setRoomId] = useState("general");
+  return (
+    <>
+      <label>
+        Choose the chat room:{" "}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoomSix roomId={roomId} />
+    </>
+  );
+}
+
+function AppTwentyTwo() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  /* this is the better fix to to a stale value bug 
+  having handleMove function inside the effect 
+  then handleMove won't be a reactive value 
+  the effect then depends on canMove instead of handleMove 
+  my effect now stays synchronized with the value of canMove */
+  useEffect(() => {
+    // code inside the effect can use conditions
+    function handleMove(e) {
+      /* setPosition call can be wrapped into an if (canMove) {...} condition
+      if (canMove) {
+        setPosition({ x: e.clientX, y: e.clientY });
+      } */
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+    // or the event subscription logic can be wrapped into an if (canMove) {...} condition
+    if (canMove) {
+      window.addEventListener("pointermove", handleMove);
+      return () => window.removeEventListener("pointermove", handleMove);
+    }
+    /* canMove is a reactive variable that I read inside the effect
+  this is why it must be specified in the list of effect dependencies 
+  including it in the dependencies ensures that the effect resynchronizes
+  after every change to canMove's value */
+  }, [canMove]);
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={canMove}
+          onChange={(e) => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div
+        style={{
+          position: "absolute",
+          backgroundColor: "pink",
+          borderRadius: "50%",
+          opacity: 0.6,
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          pointerEvents: "none",
+          left: -20,
+          top: -20,
+          width: 40,
+          height: 40,
+        }}
+      />
+    </>
+  );
+}
+
+function AppTwentyThree() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [canMove, setCanMove] = useState(true);
+
+  function handleMove(e) {
+    if (canMove) {
+      setPosition({ x: e.clientX, y: e.clientY });
+    }
+  }
+
+  useEffect(() => {
+    window.addEventListener("pointermove", handleMove);
+    return () => window.removeEventListener("pointermove", handleMove);
+    /* this next line prevents ESLint from issuing warning or errors if the
+  dependency array of my useEffect hook does not include all variables
+  referenced inside the effect
+  }, [canMove]);
+  
+  again, all variables declared in the component body are reactive
+  every reactive value must be specified as a dependency, or it can
+  potentially get stale over time 
+  
+  without re-synchronizing the effect, the handleMove attached as a
+  listener is the handleMove function created during the initial render 
+  
+  since handleMove is going to be a newly defined function for every render
+  of the component, I can remove the dependencies array altogether 
+  
+  the effect with re-synchronize after every re-render */
+  });
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={canMove}
+          onChange={(e) => setCanMove(e.target.checked)}
+        />
+        The dot is allowed to move
+      </label>
+      <hr />
+      <div
+        style={{
+          position: "absolute",
+          backgroundColor: "pink",
+          borderRadius: "50%",
+          opacity: 0.6,
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          pointerEvents: "none",
+          left: -20,
+          top: -20,
+          width: 40,
+          height: 40,
+        }}
+      />
+    </>
+  );
+}
+
+/* createEncryptedConnection and createUnencryptedConnection are two 
+different APIs */
+function createEncryptedConnection(roomId) {
+  // A real implementation would actually connect to the server
+  return {
+    connect() {
+      console.log('✅ 🔐 Connecting to "' + roomId + "... (encrypted)");
+    },
+    disconnect() {
+      console.log('❌ 🔐 Disconnected from "' + roomId + '" room (encrypted)');
+    },
+  };
+}
+
+function createUnencryptedConnection(roomId) {
+  // A real implementation would actually connect to the server
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + "... (unencrypted)");
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room (unencrypted)');
+    },
+  };
+}
+
+/* this code is fragile because someone could edit the AppTwentyFour component
+to pass an inline function as the value of this prop
+function ChatRoomSeven({ roomId, createConnection }) {
+  useEffect(() => {
+    const connection = createConnection(roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    /* again, the linter is getting suppressed 
+    createConnection is a prop that, so it's a reactive value that can change 
+    over time, should be included in the dependency array 
+    when the user ticks the checkbox, the parent component passes a different 
+    value of the createConnection prop 
+  }, [roomId, createConnection]);
+  
+now the prop is a boolean instead of a function
+and I decide which function to use inside the effect 
+both createEncryptedConnection and createUncryptedConnection are declared 
+outside the component, so they aren't reactive */
+function ChatRoomSeven({ roomId, isEncrypted }) {
+  useEffect(() => {
+    const createConnection = isEncrypted
+      ? createEncryptedConnection
+      : createUnencryptedConnection;
+    const connection = createConnection(roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, isEncrypted]);
+
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+function AppTwentyFour() {
+  const [roomId, setRoomId] = useState("general");
+  const [isEncrypted, setIsEncrypted] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{" "}
+        <select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label /* root AppTwentyFour component lets the user choose whether to 
+             use encryption or not, and then passes down the corresponding API
+             method to the child ChatRoomSeven component as the createConnection
+             prop */
+      >
+        <input
+          type="checkbox"
+          checked={isEncrypted}
+          onChange={(e) => setIsEncrypted(e.target.checked)}
+        />
+        Enable encryption
+      </label>
+      <hr />
+      <ChatRoomSeven roomId={roomId} isEncrypted={isEncrypted} />
+    </>
+  );
+}
+
+// url is a string representing the API endpoint from which data will be fetched
+function fetchData(url) {
+  if (url === "/planets") {
+    // fetches and returns a list of planets
+    return fetchPlanets();
+    /* if url starts with "/planets/", proceeds with further valdiation to see
+    if it matches a specific pattern
+    if it matches, extracts the planetId and calls the fetchPlaces()
+    the result of this match operation is stored in the match variable */
+  } else if (url.startsWith("/planets/")) {
+    // uses a regex to check if the url matches the expected pattern
+    const match = url.match(/^\/planets\/([\w-]+)\/places(\/)?$/);
+    // checks whether the url was correctly matched and whether a planetId was captured
+    if (!match || !match[1] || !match[1].length) {
+      // throw an error if the planetId is not present or the url format is incorrect
+      throw Error(
+        'Expected URL like "/planets/earth/places". Received: "' + url + '".'
+      );
+    }
+    /* extracts the planetId from the regex's captured group and passes it to fetchPlaces 
+    fetches the list of places associated with that specific planet */
+    return fetchPlaces(match[1]);
+  } else
+    throw Error(
+      // if url doesn't match any expected pattern, an error is thrown
+      'Expected URL like "/planets" or "/planets/earth/places". Received: "' +
+        url +
+        '".'
+    );
+}
+
+// simulates fetching the list of planets
+async function fetchPlanets() {
+  /* returns a promise that resolves after a 1 second delay with an
+  array of planet objects */
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve([
+        // array has planet objects, each with an id and a name
+        {
+          id: "earth",
+          name: "Earth",
+        },
+        {
+          id: "venus",
+          name: "Venus",
+        },
+        {
+          id: "mars",
+          name: "Mars",
+        },
+      ]);
+    }, 1000);
+  });
+}
+
+// simulates fetching places associated with a specific planet
+async function fetchPlaces(planetId) {
+  // if the argument is not a string, throws an error
+  if (typeof planetId !== "string") {
+    throw Error(
+      "fetchPlaces(planetId) expects a string argument. " +
+        "Instead received: " +
+        planetId +
+        "."
+    );
+  }
+  /* returns a promise that resolves after a 1 second delay with 
+  a list of places depending on the planetId */
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      if (planetId === "earth") {
+        resolve([
+          {
+            id: "laos",
+            name: "Laos",
+          },
+          {
+            id: "spain",
+            name: "Spain",
+          },
+          {
+            id: "vietnam",
+            name: "Vietnam",
+          },
+        ]);
+      } else if (planetId === "venus") {
+        resolve([
+          {
+            id: "aurelia",
+            name: "Aurelia",
+          },
+          {
+            id: "diana-chasma",
+            name: "Diana Chasma",
+          },
+          {
+            id: "kumsong-vallis",
+            name: "Kŭmsŏng Vallis",
+          },
+        ]);
+      } else if (planetId === "mars") {
+        resolve([
+          {
+            id: "aluminum-city",
+            name: "Aluminum City",
+          },
+          {
+            id: "new-new-york",
+            name: "New New York",
+          },
+          {
+            id: "vishniac",
+            name: "Vishniac",
+          },
+        ]);
+      } else throw Error("Unknown planet ID: " + planetId);
+    }, 1000);
+  });
+}
+
+function Page() {
+  // holds the list of planet fetched from the server
+  const [planetList, setPlanetList] = useState([]);
+  // holds the id of the currently selected planet
+  const [planetId, setPlanetId] = useState("");
+
+  // holds the list of places fetched based on the selected planet
+  const [placeList, setPlaceList] = useState([]);
+  // holds the id of the currently selected place
+  const [placeId, setPlaceId] = useState("");
+
+  // first select box is synchronized to the remote list of planets
+  // fetches the list of planets when the component first mounts
+  useEffect(() => {
+    /* flags that the component is still mounted and it is safe to update 
+    the state updates based on the the async operation's result */
+    let ignore = false;
+    /* the first select box populates the planetList state with 
+    the result from the /planets API call 
+    fetchData("/planets") initiates the fetch request to get the planets list
+    .then((result) => {...}) when the data is successfully fetched, 
+                             the callback function is executed with the result */
+    fetchData("/planets").then((result) => {
+      /* if ignore is still false, it proceeds to update the state 
+      this check ensures that the state is only updated if the component 
+      is still mounted and the effect hasn't been cleaned up */
+      if (!ignore) {
+        console.log("Fetched a list of planets.");
+        // updates the planetList state with the planets list returned from the /planets API call
+        setPlanetList(result);
+        // sets the initial planetId to the ID of the first planet in the list
+        setPlanetId(result[0].id); // Select the first planet
+      }
+    });
+    return () => {
+      /* component has unmounted, or the effect has been cleaned up, 
+      and therefore, it is not safe to update the state anymore 
+      ignore flag prevents state updates when the component is no 
+      longer in the DOM 
+      this cleanup function ensures that any async operations that
+      complete after the cleanup do not trigger states updates on
+      unmounted components */
+      ignore = true;
+    };
+  }, []);
+
+  // second select box is synchronized to the remote list of places for the current planetId
+  // runs whenever the planetId changes
+  useEffect(() => {
+    if (planetId) {
+      // flags that the component is still mounted and it is safe to update
+      let ignore = false;
+      // fetches list of places for newly selected planet
+      fetchData(`/planets/${planetId}/places`).then((result) => {
+        // if ignore is still false, it proceeds to update the state
+        if (!ignore) {
+          console.log(`Fetched places for planet: ${planetId}`);
+          // updates the placeList with the fetched places
+          setPlaceList(result);
+          // first place is automatically selected
+          setPlaceId(result[0]?.id || "");
+        }
+      });
+      return () => {
+        // cleanup function sets ignore to true to prevent unwanted state updates
+        ignore = true;
+      };
+    }
+    /* planetId is a dependency, so it determines when the effect runs 
+  when the dependency changes on subsequent renders, the effec will run again */
+  }, [planetId]);
+
+  return (
+    <>
+      <label>
+        Pick a planet:{" "}
+        <select
+          value={planetId}
+          onChange={(e) => {
+            setPlanetId(e.target.value);
+          }}
+          // first dropdown, planetId, is populated with options from the planetList
+        >
+          {planetList.map((planet) => (
+            <option key={planet.id} value={planet.id}>
+              {planet.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Pick a place:{" "}
+        <select
+          value={placeId}
+          onChange={(e) => {
+            setPlaceId(e.target.value);
+          }}
+          /* second dropdown, placeId, is populated with options from the placeList,
+        which depends on the selected planet */
+        >
+          {placeList.map((place) => (
+            <option key={place.id} value={place.id}>
+              {place.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <hr />
+      <p /* displays the currently selected place and planet */>
+        You are going to: {placeId || "???"} on {planetId || "???"}{" "}
+      </p>
+    </>
+  );
+}
+
+/* state initialization - state variables are created to hold lists of planets and
+                          places and the selected planet and place
+fetching planets - when component mounts, the list of planets is fetched and the first
+                   planet is selected by default
+fetching places - when a planet is selected, the list of places for that planet is fetched
+                  and the first place is selected by default
+rendering - dropdown menus are populated with the planets and places, and they update 
+            based on the user's selection */
+
+// custom hook
+function useSelectOptions(url) {
+  const [list, setList] = useState(null);
+  const [selectedId, setSelectedId] = useState("");
+  /* most effects in my app should eventually be replaced by custom hooks 
+  custom hooks hide the synchronization logic, so the calling component
+  doesn't know about the effect 
+  as I keep working on my app, I'll develop a palette of hooks to choose from
+  and eventually I won't need to write Effects in my components very often */
+  useEffect(() => {
+    if (url === null) {
+      return;
+    }
+
+    let ignore = false;
+    fetchData(url).then((result) => {
+      if (!ignore) {
+        setList(result);
+        setSelectedId(result[0].id);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [url]);
+  return [list, selectedId, setSelectedId];
+}
+
+function PageOne() {
+  const [planetList, planetId, setPlanetId] = useSelectOptions("/planets");
+  const [placeList, placeId, setPlaceId] = useSelectOptions(
+    planetId ? `/planets/${planetId}/places` : null
+  );
+
+  return (
+    <>
+      <label>
+        Pick a planet:{" "}
+        <select
+          value={planetId}
+          onChange={(e) => {
+            setPlanetId(e.target.value);
+          }}
+          /* first dropdown, planetId, is populated with options from the planetList 
+          ? optional chaining operator used to safely access properties of an object
+          that might be null or undefined without causing an error */
+        >
+          {planetList?.map((planet) => (
+            <option key={planet.id} value={planet.id}>
+              {planet.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Pick a place:{" "}
+        <select
+          value={placeId}
+          onChange={(e) => {
+            setPlaceId(e.target.value);
+          }}
+          /* second dropdown, placeId, is populated with options from the placeList,
+        which depends on the selected planet */
+        >
+          {placeList?.map((place) => (
+            <option key={place.id} value={place.id}>
+              {place.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <hr />
+      <p /* displays the currently selected place and planet */>
+        You are going to: {placeId || "???"} on {planetId || "???"}{" "}
+      </p>
+    </>
+  );
+}
+
+/* Updating state based props or state
+calculates a fullName from firstName and lastName by concatenating them */
+function FormFour() {
+  const [firstName, setFirstName] = useState("Taylor");
+  const [lastName, setLastName] = useState("Swift");
+  /* good to calculate fullName during rendering 
+  avoid redundant state and unnecessary effect 
+  when something can be calculated from existing props or state, don't put 
+  it in state 
+  instead calculate it during rendering 
+  (remember, state is the minimal set of changing data that my app needs 
+  to remember */
+  const fullName = firstName + " " + lastName;
+}
+
+/* Caching expensive calculations 
+computes visibleTodos by taking the todos it receives by props and filtering 
+them according to the filter prop again, avoid redundant state and unnecessary 
+effect */
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState("");
+  /* this is fine if getFilteredTodos() is not slow or if I don't have a lot of todos
+  if either of those is true, I don't want to recalculate getFilteredTodos() if some 
+  unrelated state variable like newTodo has changed
+  const visibleTodos = getFilteredTodos(todos, filter); */
+
+  /* I can cache or memoise an expensive calculation by wrapping it in a useMemo hook 
+  useMemo hook in React will optimize the performance of my component by caching the 
+  result of a computation that is resource-intensive 
+  useMemo lets me memoize the result of a calculation or function call so that it is 
+  only recomputed when its dependencies change 
+  memoization - storing the result of a computation so that I don't have to redo the 
+                calculation if the input values haven't changed */
+  /* tells React I don't want the innter function to re-run unless either todos or
+  filter have changed 
+  unless I'm creating or looping over thousands of objects, it's probably not expensive
+  I can add a console log to measure the time spent in a piece of code */
+
+  /* adding a console log to measure the time spent in a piece of code 
+  if the overall logged time adds up to a significant amount, it might
+    make sense to memoize the calculation 
+  
+  measuring performance in development will not give me the most accurate results, 
+  ex. in Strict Mode, each component renders twice rather than once
+  to get most accurate timings, I need to build my app for production and 
+    test it on a device like my users have */
+  console.time("filter array");
+  const visibleTodos = useMemo(() => {
+    return getFilteredTodos(todos, filter);
+  }, [todos, filter]);
+  console.timeEnd("filter array");
+}
+
+/* whenever the key changes, React will recreate the DOM and reset the state
+of the Profile component and all of its children
+now the comment field will clear out automatically when navigating between profiles */
+function ProfilePage({ userId }) {
+  return <ProfileOne userId={userId} key={userId} />;
+}
+
+/* if I reset state on prop change in an effect, the component and its children
+will first render with the stale value, and then render again
+it's complicated bc I'd need to do this in every component that has 
+  some state inside ProfilePage
+  if the comment UI is nested, I'd want to clear out nested comment state too
+  
+I can tell React that each user's profile is conceptually a different profile
+by giving it an explicity key 
+here, the component is split in two and a key attribute
+from the outer component is passed to the inner one */
+function ProfileOne({ userId }) {
+  // this and any other state below will reset on key change automatically
+  const [comment, setComment] = useState("");
+}
+
+function ListOne({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // adjust the state while rendering
+  const [prevItems, setPrevItems] = useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    // setSelection is called directly during a render
+    setSelection(null);
+  }
+  /* React will re-render the ListOne immediately after it exits with a return statement 
+  React has not rendered the List children or updated the DOM yet, so this lets the List
+  children skip rendering the stale selection value */
+  // ...
+}
+
+/* when I update a component during rendering, React throws away the return JSX and 
+immediately retries rendering
+React only lets me update the same component's state during a render
+items !== prevItems is necessary to avoid loops
+any other side effects (like changing the DOM or setting timeouts) should stay in
+  event handlers or effects to keep components pure */
+
+function ListTwo({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  /* instead of storing and resetting the selected item, I can store
+  the selected item Id */
+  const [selectedId, setSelectedId] = useState(null);
+
+  /* calculate everything during rendering 
+  no need to adjust the state at all
+  if the item with the selected id is in the list, it remains selected
+  if it's not, the selection calculated during rendering will be null 
+  most changes to items will preserve the selection */
+  const selection = items.find((item) => item.id === selectedId) ?? null;
+  // ...
+}
+
 export {
   App,
   TaskApp,
@@ -2520,4 +3873,27 @@ export {
   Gallery,
   ContactListTwo,
   Person,
+  Clock,
+  ClockOne,
+  ClockTwo,
+  MyComponent,
+  AdditionDisplay,
+  AppTwelve,
+  AppThirteen,
+  MyComponentOne,
+  AppFourteen,
+  AppFifteen,
+  AppEighteen,
+  AppTwenty,
+  AppTwentyOne,
+  AppTwentyTwo,
+  AppTwentyThree,
+  AppTwentyFour,
+  Page,
+  PageOne,
+  FormFour,
+  TodoList,
+  ProfilePage,
+  ListOne,
+  ListTwo,
 };
