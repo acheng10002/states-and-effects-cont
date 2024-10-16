@@ -60,6 +60,12 @@ import {
   ProfilePage,
   ListOne,
   ListTwo,
+  TodoListOne,
+  TodoListTwo,
+  TodoListThree,
+  ContactManagerOne,
+  FormSix,
+  FormSeven,
 } from "./App.jsx";
 // styles for my components
 import "./index.css";
@@ -406,7 +412,7 @@ What to do when I disagree with the linter
   ex. write an effect that keeps a jQuery widget synchronized with the React state
   ex. write an effect that that synchronizes the search results with the current
       search query
-How to remove unnecessary effects
+How to remove unnecessary effectss
   Updating state based props or state
   Caching expensive calculations
   Resetting all state when a prop changes
@@ -417,15 +423,34 @@ How to remove unnecessary effects
       should not share any state
   Adjusting some state when a prop changes
     adjust the state directly during rendering
-    most components shouldn't need this
+    most components shouldn't need thiss
     I should check whether I can reset all state with a key or calculate everything
       during rendering 
   Sharing logic between event handlers
+    when I'm not sure whether some code should be in an effect or in an event handler, 
+      ask myself WHY this code needs to run
+    use effects only for code that should run BECAUSE the component was displayed to the
+      user
   Sending a POST request
-  Chains of computation
+    Whether to put some logic into an event handler or an effect, question I need to
+      answer is, what kind of logic is it from the user's perspective
+    if the logic is caused by a particular interaction, keep it in the event handler
+    if it's caused by the user seeing the component on the screenm keep it in the effect
+  Chains of computations
+    Avoid chains of effects that adjust the state solely to trigger each other
   Initializing the application
+    avoid effects with logic that should only ever run once
+    effects run twice in development, so my components should be resilent to being remounted, 
+      including my top-level App component 
+      doing so, makes it easier to move and reuse code
   Notifying parent components about state changes
+    "lifting state up" lets the parent component fully control the child
+      by toggling the parent's own state
+    the parent will have to contain more logic, but there will be less state
+      overall to worry about
   Passing data to the parent
+    don't pass data to the parent in an effect
+    have parent fetch the data and pass it down to the child instead
   Subscribing to an external store
   Fetching data
 */
@@ -489,5 +514,11 @@ createRoot(document.getElementById("root")).render(
     <ProfilePage />
     <ListOne />
     <ListTwo />
+    <TodoListOne />
+    <TodoListTwo />
+    <TodoListThree />
+    <ContactManagerOne />
+    <FormSix />
+    <FormSeven />
   </StrictMode>
 );

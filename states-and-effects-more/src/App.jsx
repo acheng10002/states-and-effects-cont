@@ -1,6 +1,6 @@
 /* useState - React hook that I can call from my component 
               and it lets my component "remember" things */
-import { useEffect, createContext, useContext, useState } from "react";
+import { useEffect, createContext, useContext, useState, useMemo } from "react";
 // import reactLogo from "./assets/react.svg";
 // import viteLogo from "/vite.svg";
 import "./App.css";
@@ -3772,7 +3772,8 @@ function TodoList({ todos, filter }) {
     test it on a device like my users have */
   console.time("filter array");
   const visibleTodos = useMemo(() => {
-    return getFilteredTodos(todos, filter);
+    // ...
+    // return getFilteredTodos(todos, filter);
   }, [todos, filter]);
   console.timeEnd("filter array");
 }
@@ -3834,8 +3835,886 @@ function ListTwo({ items }) {
   if the item with the selected id is in the list, it remains selected
   if it's not, the selection calculated during rendering will be null 
   most changes to items will preserve the selection */
-  const selection = items.find((item) => item.id === selectedId) ?? null;
+  // const selection = items.find((item) => item.id === selectedId) ?? null;
   // ...
+}
+
+/* when I'm not sure whether some code should be in an effect or in an event handler, 
+ask myself WHY this code needs to run
+use effects only for code that should run BECAUSE the component was displayed to the
+  user 
+  
+here, the notification should appear because the user pressed the button, 
+not because the page was displayed! */
+function ProducePage({ product, addToCart }) {
+  // don't need buyProduct as an effect
+  function buyProduct() {
+    addToCart(product);
+    showNotification(`Added ${product.name} to the shopping cart!`);
+  }
+
+  /* buyProduct logic is shared by handleBuyClick and handleCheckoutClick 
+  event handlers which call it (if I need to reuse logic between several 
+  event handlers, extract a function and call it from those handlers */
+  function handleBuyClick() {
+    buyProduct();
+  }
+
+  function handleCheckoutClick() {
+    buyProduct();
+    navigateTo("/checkout");
+  }
+}
+
+function FormFive() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
+  /* analytics POST request should remain an effect because the reason to
+  send the analytics event is that the form was displayed */
+  useEffect(() => {
+    postMessage("/analytics/event", { eventName: "visit_form" });
+  }, []);
+
+  /* the /api/register POST request is not caused by the form being displayed
+  I only want to send the request at one specific moment in time, when the user
+  presses the button, so the POST request can go into an event handler */
+  function handleSubmit(e) {
+    e.preventDefault();
+    postMessage("/api/register", { firstName, lastName });
+  }
+}
+
+function GameOne() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+
+  /* calculate what I can during render 
+  avoid chains of effects that adjust the state solely to trigger each other
+  problems with doing that:
+  1. it is very inefficient
+     the component (and its children) have to re-render between each set call in the chain
+  2. even if it wasn't slow, as my code evolves, I will run into cases where the chain I
+     wrote doesn't for the new requirements */
+  const isGameOver = round > 5;
+
+  /* inside event handlers, state behaves like a snapshot
+  even after I call, say, setRound(round + 1), the round variable will reflect the value 
+  at the time the user clicked the button 
+  
+  if I want to use the next value for calculations, define it manually like, 
+  const nextRound = round + 1; */
+  function handlePlaceCard(nextCard) {
+    if (isGameOver) {
+      throw Error("Game already ended.");
+    }
+
+    // calculate all the next state in the event handler
+    setCard(nextCard);
+    if (nextCard.gold) {
+      if (goldCardCount <= 3) {
+        setGoldCard(goldCardCount + 1);
+      } else {
+        setGoldCardCount(0);
+        setRound(round + 1);
+        if (round === 5) {
+          alert("Good game!");
+        }
+      }
+    }
+  }
+}
+/* this is more efficient
+if I implement a way to view game history, I will now be able to set each state variable 
+to a move from the past without triggering the effect chain that adjusts every other value
+
+in some cases, I can't calculate the next state directly in the event handler
+ex. form with multiple dropdowns where the options of the next dropdown depend on the 
+selected value of the previous dropdown
+a chain of effects is appropriate bc I am synchronizing with network */
+
+/* if logic must run once per app load rather than once per component mount,
+a top-evel variable should be added to track whether it has already executed */
+let didInit = false;
+
+/* 
+function AppTwentyFive() {
+  useEffect(() => {
+    if (!didInit) {
+      didInit = true;
+      // only runs once per app load
+      loadDataFromLocalStorage();
+      checkAuthToken();
+    }
+  }, []);
+  //...
+}
+
+// or I can also run it during module initiation and before the app renders
+if (typeof window !== "undefine") {
+  // checks if I'm running in the browser
+  // only runs once per app load
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+/* code at the top level runs once when my component is imported, even if it
+doesn't end up beign rendered
+to avoid slowdown or surprising behavior when importing arbitrary components,
+this pattern 
+app-wide initialization logic should be kept to root component modules like App.js 
+or in my application's entry point */
+function AppTwentySix() {
+  //...
+}
+
+// update the state of both components within the same event handlers
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  function updateToggle(nextIsOn) {
+    // perform all updates during the event that caused them
+    setIsOn(nextIsOn);
+    onChange(nextIsOn);
+  }
+
+  function handleClick() {
+    updateToggle(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      updateToggle(true);
+    } else {
+      updateToggle(false);
+    }
+  }
+  //...
+}
+/* both Toggle component and its parent component update their state 
+during the event
+React batches updates from different components together, so there will
+be only one render pass */
+
+/* state may be removed altogether, and instead receive isOn from 
+from the parent component 
+this way, the component is fully controlled by its parent */
+function ToggleOne({ isOn, onChange }) {
+  function handleClick() {
+    onChange(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      onChange(true);
+    } else {
+      onChange(false);
+    }
+  }
+}
+
+/* when I see something wrong on the screen, trace where the info comes
+from by going up the component chain until I find which component passes
+the wrong prop or has the wrong prop */
+function Parent() {
+  /* const [data, setData] = useState(null);
+  // ...
+  return <Child onFetched={setData} /> */
+  const data = useSomeAPI();
+  // passing data down to the child
+  return <Child data={data} />;
+}
+
+function Child({ data }) {
+  /* avoid passing data to the parent in an effect 
+function Child({ onFetch }) {
+  const data = useSomeAPI();
+  useEffect(() => {
+    if (data) {
+      onFetched(data);
+    }
+  }, [onFetched, data]); */
+  //...
+}
+
+function subscribe(callback) {
+  window.addEventListener("online", updateState);
+  window.addEventListener("offline", updateState);
+  return () => {
+    window.removeEventListener("online", updateState);
+    window.removeEventListener("offline", updateState);
+  };
+}
+
+/* instead of having child components update the state of their parent 
+components, let parents fetch that data and pass it down to the child 
+
+my components may need to subscribe to some data outside of the React state 
+data could be from a third-party library or a built-in browser API 
+the data can change without React's knowledge, so I need to manually
+subscribe my components to it, often with an effect, BUT that's not ideal */
+function useOnlineStatus() {
+  /* navigator.onLine API does not exist on the server, so it can't be 
+  used for the initial HTML and state is initially set to true 
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function updateState() {
+      /* component subscribes to an external data source, the browser 
+      navigator.onLine API 
+      whenver the value of the data source changes in the browser,
+      the component updates its state 
+      setIsOnline(navigator.onLine);
+    }
+
+    updateState();
+    */
+  /* window.addEventListener("online", updateState);
+    window.addEventListener("offline", updateState);
+    return () => {
+      window.removeEventListener("online", updateState);
+      window.removeEventListener("offline", updateState);
+    };
+  }, []);
+  return isOnline; */
+  /* React has a purpose-built hook for subscribing to an external store
+  that is preferred instead, useSyncExternalStore */
+  return useSyncExternalStore(
+    // React won't resubscribe for as long as I pass the same function
+    subscribe,
+    // how to get the value on the client
+    () => navigator.onLine,
+    // how to get the value on the server
+    () => true
+  );
+}
+
+function ChatIndicator() {
+  // useOnlineStatus is a custom hook
+  const isOnline = useOnlineStatus();
+}
+
+/* child component receives items as props from the parent and displays the list 
+props - read-only/immutable inputs from the parent to a child
+        controlled by parent
+        if props change, they trigger re-renders
+        props scope is across components from parent to child */
+function ShoppingList({ items }) {
+  return (
+    <ul /* iterates over the items object prop and for each item, display a li 
+    element with item.id assigned to its key and with item.name as its content */
+    >
+      {items.map((item) => (
+        <li key={item.id}>{item.name}</li>
+      ))}
+    </ul>
+  );
+}
+
+/* parent component manages state, props, and side effects */
+function AppTwentySeven() {
+  /* state - mutable internal data managed within a component
+             controlled by component itself 
+             if state updates, they trigger re-renders
+             state scope is local to the component */
+  // state to manage the list of items
+  const [items, setItems] = useState([]);
+  // state to track the number of items
+  const [count, setCount] = useState(0);
+
+  /* effect fetches the shopping list data from a mock API (application programming
+  interface - set of rules and protocols that allows different apps or systems to
+  communicate with each other and exchange data) when the component mounts 
+  effects - manage side effects like API calls
+            controlled by component's lifecycle 
+            effects do not trigger re-renders, but they may trigger async changes
+            effects scope synchronizes with external changes 
+            exs. data fetching, DOM manipulation, subscriptions, or cleanup */
+  useEffect(() => {
+    console.log("Fetching shopping list...");
+    /* simulates an API call; makes an HTTP request to the specified URL 
+    sends GET request 
+    fetch() returns a Promise that resolves with the HTTP response */
+    fetch("/api/shopping-list")
+      /* when the response from the server arrives, takes raw HTTP response 
+      and extracts the JSON content from the response body */
+      .then((response) => response.json())
+      /* response.json() also returns a promise that resolves with the parsed
+      JSON data and processes the data */
+      .then((data) => {
+        // updates the items state with the fetched data
+        setItems(data);
+        // updates the count state with the number of items
+        setCount(data.length);
+      });
+    // empty dependency array, so effect runs only once after the component mounts
+  }, []);
+
+  // handler to add a new item to the shopping list (updating state)
+  const addItem = () => {
+    const newItem = { id: items.length + 1, name: `Item ${items.length + 1}` };
+    // update the items state
+    setItems([...items, newItem]);
+    // update the count state
+    setCount(count + 1);
+  };
+
+  return (
+    <div>
+      <h1>Shopping List</h1>
+      {/* state displayed */}
+      <p>Number of items: {count}</p>
+      {/* pass items as props to the child component */}
+      <ShoppingList items={items} />s{/* update state on button click */}
+      <button onClick={addItem}>Add Item</button>
+    </div>
+  );
+}
+
+/* useEffect hook synchronizes external side effects after renders or when certain
+dependencies change (with a component's lifecycle)
+- effects run after render
+- I can control when the effect runs by passing dependencies in an array
+- effects can return a cleanup function to run before the next effect or when the
+  component unmounts */
+
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    let ignore = false;
+    /* avoid fetching without cleanup logic 
+    function call that retrieves the results for the specified query and page
+    once the call resolves and returns the data  */
+    fetchResults(query, page).then((json) => {
+      if (!ignore) {
+        // callback function updates results with data that is fetched
+        setResults(json);
+      }
+    });
+    /* this is the cleanup function that fixes teh race condition (when two different
+    requests race against each other and come on a different order than I expect 
+    when my effect fetches data, all responses except the last requested one will be
+    ignored */
+    return () => {
+      ignore = true;
+    };
+    /* effect is only rerun when the query or page state changes 
+    useful whenever the user changes the search query or navigates 
+    to a different page */
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+/* in addition to handling race conditions, there's also caching responses (so that
+the user can click Back and see the previous screen instantly, fetching data on the
+server (so that initial server-rendered HTML contains the fetched content instead of
+a spinner), and avoid network waterfalls (so that a child can fetch data without waiting 
+for every parent) 
+
+I can extract fetching logic into a custom hook */
+function SearchResultsOne({ query }) {
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({ query, page });
+  const results = useData(`/api/search?${params}`);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+/* whenever I have to resort to writing effects, keep an eye out for when I can extract
+a piece of functionality into a custom hook with a more declarative and purpose-built API
+like useData
+***the fewer useEffects calls I have in my component, the easier I will find it to 
+maintain my application */
+function useData(url) {
+  // state to manage the data, initially set to null
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    /* ignore serves as a flag to manage state updates during async operations such
+    as fetching data
+    prevents useData from trying to update state if the component unmounts
+    or if the effect is no longer relevant by the time the fetch completes */
+    let ignore = false;
+    /* when async fetch is initiated inside useEffect hook, there's a chance the 
+    component could unmount before the operation completes
+    ignore flag ensures that once the component has been unmount or the effect is
+    clearned up, the state update, setData(json), is skipped */
+    fetch(url)
+      /* when the HTTP response from the server arrives, takes raw response
+      and extracts JSON content from the response body */
+      .then((response) => response.json())
+      /* response.json() also returns a promise that resolves with the parsed
+      JSON data and processes the data */
+      .then((json) => {
+        /* if ignore is still false, update the state with the data */
+        if (!ignore) {
+          setData(json);
+        }
+      });
+    // sets flag to false once the fetch completes
+    return () => {
+      ignore = true;
+    };
+    // triggers re-render when url changes
+  }, [url]);
+  return data;
+}
+/* should add logic for error handling and to track whether the content is loading 
+
+- if I can calculate something during render, I don't need an effect
+- to cache expensive calculations, add useMemo instead of useEffect
+- to reset the state of an entire component tree, pass a different key to it
+- to reset a particular bit of state in response to a prop change, set it during 
+  rendering
+- code that runs because a component was displayed should be in effects
+  the rest should be in events
+- if I need to update the state of several components, it's better to do it 
+  during a single event
+- whenever I try to synchronize state variables in different components, 
+  considering lefting state up
+- I can fetch data with effects, but I need to implement cleanup to avoid race
+  conditions */
+
+let nextIdOne = 0;
+
+function createTodo(text, completed = false) {
+  return {
+    id: nextId++,
+    text,
+    completed,
+  };
+}
+
+const initialTodosOne = [
+  createTodo("Get apples", true),
+  createTodo("Get oranges", true),
+  createTodo("Get carrots"),
+];
+
+function TodoListOne() {
+  /* only 2 essential pieces of state are todos and showActive 
+  all other state variables are redundant and can be calculated during rendering */
+  const [todos, setTodos] = useState(initialTodosOne);
+  const [showActive, setShowActive] = useState(false);
+  // const [activeTodos, setActiveTodos] = useState([]);
+  // const [visibleTodos, setVisibleTodos] = useState([]);
+  // const [footer, setFooter] = useState(null);
+
+  const activeTodos = todos.filter((todo) => !todo.completed);
+
+  /* useEffect(() => {
+    setActiveTodos(todos.filter((todo) => !todo.completed));
+  }, [todos]); */
+
+  /* useEffect(() => {
+    setVisibleTodos(showActive ? activeTodos : todos);
+  }, [showActive, todos, activeTodos]); */
+
+  const visibleTodos = showActive ? activeTodos : todos;
+
+  /* useEffect(() => {
+    setFooter(<footer>{activeTodos.length} todos left</footer>);
+  }, [activeTodos]); */
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={showActive}
+          onChange={(e) => setShowActive(e.target.checked)}
+        />
+        Show only active todos
+      </label>
+      <NewTodo onAdd={(newTodo) => setTodos([...todos, newTodo])} />
+      <ul>
+        {visibleTodos.map((todo) => (
+          <li key={todo.id}>
+            {todo.completed ? <s>{todo.text}</s> : todo.text}
+          </li>
+        ))}
+      </ul>
+      <footer>{activeTodos.length} todos left</footer>
+    </>
+  );
+}
+
+let calls = 0;
+
+function getVisibleTodos(todos, showActive) {
+  console.log(`getVisibleTodos() was called ${++calls} times`);
+  const activeTodos = todos.filter((todo) => !todo.completed);
+  const visibleTodos = showActive ? activeTodos : todos;
+  return visibleTodos;
+}
+
+function TodoListTwo() {
+  const [todos, setTodos] = useState(initialTodosOne);
+  const [showActive, setShowActive] = useState(false);
+  const [text, setText] = useState("");
+  // avoid redundant state and unnecessary effect
+  // const [visibleTodos, setVisibleTodos] = useState([]);
+
+  /* getVisibleTodos() will be called only if todos or showActive change
+  typing into the input only changes the text state variable, so it does 
+  not trigger a call to getVisibleTodos() */
+  const visibleTodos = useMemo(
+    () => getVisibleTodos(todos, showActive),
+    [todos, showActive]
+  );
+
+  /* useEffect(() => {
+    setVisibleTodos(getVisibleTodos(todos, showActive));
+  }, [todos, showActive]); */
+
+  function handleAddClick() {
+    setText("");
+    setTodos([...todos, createTodo(text)]);
+  }
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={showActive}
+          onChange={(e) => setShowActive(e.target.checked)}
+        />
+        Show only active todos
+      </label>
+      <input value={text} onChange={(e) => setText(e.target.value)} />
+      <button onClick={handleAddClick}>Add</button>
+      <ul>
+        {visibleTodos.map((todo) => (
+          <li key={todo.id}>
+            {todo.completed ? <s>{todo.text}</s> : todo.text}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function TodoListThree() {
+  const [todos, setTodos] = useState(initialTodosOne);
+  const [showActive, setShowActive] = useState(false);
+
+  const visibleTodos = getVisibleTodos(todos, showActive);
+
+  /* useEffect(() => {
+    setVisibleTodos(getVisibleTodos(todos, showActive));
+  }, [todos, showActive]); */
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={showActive}
+          onChange={(e) => setShowActive(e.target.checked)}
+        />
+        Show only active todos
+      </label>
+      <NewTodo onAdd={(newTodo) => setTodos([...todos, newTodo])} />
+      <ul>
+        {visibleTodos.map((todo) => (
+          <li key={todo.id}>
+            {todo.completed ? <s>{todo.text}</s> : todo.text}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/* text state variable can't possibly affect the list of todos, so NewTodo
+form can be extracted into a separate component
+text state variable can be moved into it */
+function NewTodo({ onAdd }) {
+  const [text, setText] = useState("");
+
+  function handleAddClick() {
+    setText("");
+    onAdd(createTodo(text));
+  }
+
+  return (
+    <>
+      {/* when the input is typed into, only the text state updates 
+      the text state is in the child NewTodo component, so the parent
+      ToDoListThree component won't get re-rendered and getVisibleTodos 
+      doesn't get called */}
+      <input value={text} onChange={(e) => setText(e.target.value)} />
+      <button onClick={handleAddClick}>Add</button>
+    </>
+  );
+}
+
+function ContactListThree({ contacts, selectedId, onSelect }) {
+  return (
+    <section>
+      <ul>
+        {contacts.map((contact) => (
+          <li key={contact.id}>
+            <button
+              onClick={() => {
+                onSelect(contact.id);
+              }}
+            >
+              {contact.id === selectedId ? <b>{contact.name}</b> : contact.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function EditContactOne(props) {
+  /* const [name, setName] = useState(savedContact.name);
+  const [email, setEmail] = useState(savedContact.email); 
+  {...props} passes all the props received by EditContactOne to EditForm 
+  unique key is added based on the savedContact's id 
+  this ensures that React treats each form instance as a distinct element
+  during re-renders */
+  return <EditForm {...props} key={props.savedContact.id} />;
+}
+
+/* useEffect(() => {
+    setName(savedContact.name);
+    setEmail(savedContact.email);
+  }, [savedContact]); */
+
+/* const [prevSavedContact, setPrevSavedContact] = useState(savedContact);
+  if (savedContact !== prevSavedContact) {
+    setName(savedContact.name);
+    setEmail(savedContact.email);
+    setPrevSavedContact(savedContact);
+  } 
+    
+all the form state gets moved into the inner EditForm component 
+make EditContactOne pass savedContact.id as the key to the inner EditForm 
+component 
+inner EditForm component resets all of the form state and recreates the DOM
+whenever I select a different contact */
+function EditForm({ savedContact, onSave }) {
+  const [name, setName] = useState(savedContact.name);
+  const [email, setEmail] = useState(savedContact.email);
+
+  return (
+    <section>
+      <label>
+        Name:{" "}
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </label>
+      <label>
+        Email:{" "}
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </label>
+      <button
+        onClick={() => {
+          const updatedData = {
+            id: savedContact.id,
+            name: name,
+            email: email,
+          };
+          onSave(updatedData);
+        }}
+      >
+        Save
+      </button>
+      <button
+        onClick={() => {
+          setName(savedContact.name);
+          setEmail(savedContact.email);
+        }}
+      >
+        Reset
+      </button>
+    </section>
+  );
+}
+
+function ContactManagerOne() {
+  const [contacts, setContacts] = useState(initialContactsOne);
+  const [selectedId, setSelectedId] = useState(0);
+  const selectedContact = contacts.find((c) => c.id === selectedId);
+
+  function handleSave(updatedData) {
+    const nextContacts = contacts.map((c) => {
+      if (c.id === updatedData.id) {
+        return updatedData;
+      } else {
+        return c;
+      }
+    });
+    setContacts(nextContacts);
+  }
+
+  return (
+    <div>
+      <ContactListThree
+        contacts={contacts}
+        selectedId={selectedId}
+        onSelect={(id) => setSelectedId(id)}
+      />
+      <hr />
+      <EditContactOne savedContact={selectedContact} onSave={handleSave} />
+    </div>
+  );
+}
+
+const initialContactsOne = [
+  { id: 0, name: "Taylor", email: "taylor@mail.com" },
+  { id: 1, name: "Alice", email: "alice@mail.com" },
+  { id: 2, name: "Bob", email: "bob@mail.com" },
+];
+
+// this solution still has sendMessage getting called with an empty string passed in
+function FormSix() {
+  // state to manage form display, start at false/ not showing form
+  const [showForm, setShowForm] = useState(false);
+  // state to manage message text
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    // ignore is flag for whether the effect is still relevant
+    let ignore = false;
+    // only update state if the effect is still relevant
+    if (!ignore) {
+      /* if showForm is false, console log the message 
+      problem is, a message is getting console logged even if send 
+      button hasn't been clicked */
+      if (!showForm) {
+        sendMessage(message);
+      }
+    }
+    /* cleanup function ensures that when the component re-renders, the
+    old effect marks itself as ignored by setting ignore = true 
+    */
+    return () => {
+      ignore = true;
+    };
+    /* showForm and message (as with any state) are dependencies
+  each state change triggers a re-render and re-runs the useEffect, so
+  multiple operations could be initiated at once
+  
+  useEffect function associated with an older state could finish after 
+  the latest effect has already run
+  this leads to an older message being sent last, overwriting or 
+  conflicting with newer data (empty string getting logged in the console) */
+  }, [showForm, message]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setShowForm(false);
+  }
+
+  if (!showForm) {
+    return (
+      <>
+        <h1>Thanks for using our services!</h1>
+        <button
+          onClick={() => {
+            setMessage("");
+            setShowForm(true);
+          }}
+        >
+          Open chat
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <textarea
+        placeholder="Message"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+      />
+      <button type="submit" disabled={message === ""}>
+        Send
+      </button>
+    </form>
+  );
+}
+
+function sendMessage(message) {
+  console.log("Sending message: " + message);
+}
+
+/* Better solution - I am not sending the mssage because Thank you was displayed
+I want to send the message because the user has submitted the form 
+only submitting the form, the event, causes the message to be sent
+this works regardless of whether showForm is initially set to true or false */
+function FormSeven() {
+  const [showForm, setShowForm] = useState(false);
+  const [message, setMessage] = useState("");
+
+  /* useEffect(() => {
+    let ignore = false;
+    if (!ignore) {
+      if (!showForm) {
+        sendMessage(message);
+      }
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [showForm, message]); */
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setShowForm(false);
+    // sendMessage should be called inside this event handler
+    sendMessage(message);
+  }
+
+  if (!showForm) {
+    return (
+      <>
+        <h1>Thanks for using our services!</h1>
+        <button
+          onClick={() => {
+            setMessage("");
+            setShowForm(true);
+          }}
+        >
+          Open chat
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <textarea
+        placeholder="Message"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+      />
+      <button type="submit" disabled={message === ""}>
+        Send
+      </button>
+    </form>
+  );
 }
 
 export {
@@ -3896,4 +4775,10 @@ export {
   ProfilePage,
   ListOne,
   ListTwo,
+  TodoListOne,
+  TodoListTwo,
+  TodoListThree,
+  ContactManagerOne,
+  FormSix,
+  FormSeven,
 };
